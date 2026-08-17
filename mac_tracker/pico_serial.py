@@ -4,6 +4,7 @@
 # 2. Send pan and tilt angles to the Pico over serial
 # 3. Pico receives the angles and moves the servos accordingly
 import serial # Serial library for communication with the Pico over USB
+import time
 
 BAUD_RATE = 115200 # Baud rate for the serial connection
 
@@ -19,3 +20,17 @@ def send_angles(ser, pan_angle, tilt_angle): # Send pan and tilt angles to the P
     # ser is the serial connection object, pan_angle and tilt_angle are the angles to be sent to the Pico
     command = f"PAN:{pan_angle},TILT:{tilt_angle}\n" # output format: "PAN:90,TILT:45" (example)
     ser.write(command.encode()) # Encode the command string to bytes and send it over the serial connection to the Pico
+
+
+def ease_to_angles(ser, start_pan, start_tilt, target_pan, target_tilt, steps=20, step_delay=0.03):
+    """Gradually walks from a starting angle to a target angle instead of
+    jumping straight there in one command. The Pico now idles at a safe LOW
+    duty at boot rather than assuming center is safe, so it's on the HOST
+    side (here) to ease up to center itself once a script connects and a
+    human is present/watching - rather than relying on the Pico to do it
+    unattended at boot, which is what caused the power-on snap before."""
+    for i in range(steps + 1):
+        pan = start_pan + (target_pan - start_pan) * i / steps
+        tilt = start_tilt + (target_tilt - start_tilt) * i / steps
+        send_angles(ser, round(pan), round(tilt))
+        time.sleep(step_delay)

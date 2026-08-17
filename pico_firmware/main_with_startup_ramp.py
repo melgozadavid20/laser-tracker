@@ -64,14 +64,21 @@ def parse_command(line):
         return None, None, None, None
 
 def main():
-    # DEBUG/TESTING VERSION - does nothing automatic at boot. No ramp, no
-    # default duty, no movement of any kind until an explicit command
-    # arrives over serial. We confirmed via manual_control.py that 90/90
-    # itself causes straining even with a clean, deliberate, isolated
-    # command - so the startup ramp (which targets 90) isn't the problem,
-    # 90 is. Going back to this debug firmware to actually pin down the
-    # real safe range before touching the startup behavior again. The
-    # production version is saved in main_with_startup_ramp.py.
+    # IMPORTANT - power order matters: this only runs once, the moment the
+    # Pico itself boots (USB plugged in, or reset). If the TalentCell
+    # (servo power) is OFF at that moment, this ramp executes with no power
+    # reaching the servo, so nothing physically moves - the servo just sits
+    # wherever it happened to be. Then later, whenever the TalentCell is
+    # switched on, the servo suddenly gets power and slams straight to
+    # whatever duty is already sitting on the signal line, with no ramp,
+    # because the ramp already ran earlier while unpowered and did nothing.
+    # That's what was causing the power-on shoot-up/buzz.
+    #
+    # For this ramp to actually smooth anything out physically, the
+    # TalentCell must already be ON *before* the Pico boots/resets:
+    #   1. TalentCell ON first
+    #   2. THEN plug in / reset the Pico
+    # That way this code runs while the servo is actually powered.
 
     # Blink 3 times as a visible "this is the current firmware" marker -
     # confirms this exact code is what's running, no serial/REPL needed.
@@ -80,6 +87,9 @@ def main():
         time.sleep_ms(150)
         led.off()
         time.sleep_ms(150)
+
+    ramp_to_angle(pan_servo, 90, steps=40, step_delay_ms=25)
+    ramp_to_angle(tilt_servo, 90, steps=40, step_delay_ms=25)
 
     while True:
         line = sys.stdin.readline()
